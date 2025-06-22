@@ -292,3 +292,116 @@ export const validatePhilippineBusinessData = (data: Record<string, unknown>) =>
     errors
   };
 };
+
+// APPEND THIS TO THE END OF: src/lib/validations/philippineValidators.ts
+
+import { z } from 'zod';
+
+// ========================================
+// ZOD SCHEMAS FOR REACT-HOOK-FORM
+// ========================================
+
+// Philippine TIN validation schema (using existing validation function)
+export const tinSchema = z.string().refine((tin) => {
+  const result = validateTIN(tin);
+  return result.isValid;
+}, {
+  message: 'TIN must be in format: 123-456-789-000'
+});
+
+// Philippine SSS validation schema
+export const sssSchema = z.string().refine((sss) => {
+  const result = validateSSS(sss);
+  return result.isValid;
+}, {
+  message: 'SSS number must be in format: 03-1234567-8'
+});
+
+// Philippine PhilHealth validation schema
+export const philhealthSchema = z.string().refine((philhealth) => {
+  const result = validatePhilHealth(philhealth);
+  return result.isValid;
+}, {
+  message: 'PhilHealth number must be 11 digits'
+});
+
+// Philippine Pag-IBIG validation schema
+export const pagibigSchema = z.string().refine((pagibig) => {
+  const result = validatePagIBIG(pagibig);
+  return result.isValid;
+}, {
+  message: 'Pag-IBIG number must be 13 digits'
+});
+
+// Philippine phone number validation schema
+export const phoneSchema = z.string().refine((phone) => {
+  const result = validatePhilippineMobile(phone);
+  return result.isValid;
+}, {
+  message: 'Invalid Philippine phone number format'
+});
+
+// Company information validation schema
+export const companyInfoSchema = z.object({
+  companyName: z.string()
+    .min(3, 'Company name must be at least 3 characters')
+    .max(100, 'Company name must be less than 100 characters'),
+  industry: z.string().min(1, 'Please select an industry'),
+  employeeCount: z.string().min(1, 'Please select employee count'),
+  region: z.string().min(1, 'Please select a region'),
+  city: z.string().min(1, 'Please select a city'),
+  address: z.string()
+    .min(10, 'Address must be at least 10 characters')
+    .max(200, 'Address must be less than 200 characters'),
+  adminName: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(50, 'Name must be less than 50 characters'),
+  adminEmail: z.string().email('Invalid email address'),
+  adminPhone: phoneSchema
+});
+
+// Business details validation schema
+export const businessDetailsSchema = z.object({
+  tin: tinSchema,
+  sssNumber: sssSchema,
+  philhealthNumber: philhealthSchema,
+  pagibigNumber: pagibigSchema,
+  businessRegistration: z.string().optional(),
+  payrollSchedule: z.string().min(1, 'Please select payroll schedule'),
+  workingDays: z.string().min(1, 'Please select working days')
+});
+
+// Admin account validation schema
+export const adminAccountSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
+           'Password must contain uppercase, lowercase, number, and special character'),
+  confirmPassword: z.string(),
+  subdomain: z.string()
+    .min(3, 'Subdomain must be at least 3 characters')
+    .max(30, 'Subdomain must be less than 30 characters')
+    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"]
+});
+
+// Plan selection validation schema
+export const planSelectionSchema = z.object({
+  selectedPlan: z.enum(['starter', 'professional', 'enterprise']),
+  billingCycle: z.enum(['monthly', 'annually'])
+});
+
+// Payment validation schema
+export const paymentSchema = z.object({
+  paymentMethod: z.enum(['card', 'gcash', 'bank_transfer']),
+  cardNumber: z.string().optional(),
+  cardName: z.string().optional(),
+  expiryDate: z.string().optional(),
+  cvv: z.string().optional(),
+  termsAccepted: z.boolean().refine(val => val === true, {
+    message: 'You must accept the terms and conditions'
+  })
+});

@@ -28,6 +28,14 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/super-admins/$(request.auth.uid));
     }
     
+    // ========================================
+    // DRAFT REGISTRATIONS - Allow anonymous access
+    // ========================================
+    match /draft_registrations/{registrationId} {
+      // Allow read/write for anyone during registration process
+      allow read, write: if true;
+    }
+    
     // Super Admin access (Platform owners only)
     match /super-admins/{adminId} {
       allow read, write: if isAuthenticated() 
@@ -42,7 +50,8 @@ service cloud.firestore {
     
     // Companies collection - Company admins can manage their company
     match /companies/{companyId} {
-      allow read, write: if isCompanyAdmin(companyId) || isSuperAdmin();
+      allow read: if true; // Allow subdomain availability checking
+      allow write: if isCompanyAdmin(companyId) || isSuperAdmin();
       allow create: if isAuthenticated(); // New company registration
     }
     
