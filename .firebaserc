@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "sahod-staging",
+    "prod": "sahod-prod",
+    "staging": "sahod-staging"
+  },
+  "targets": {},
+  "etags": {}
+}

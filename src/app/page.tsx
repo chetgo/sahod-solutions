@@ -1,103 +1,163 @@
-import Image from "next/image";
+// src/app/page.tsx - Test Firebase connection
+'use client';
+
+import { useEffect, useState } from 'react';
+import { db, auth, isProduction, isStaging } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [firebaseStatus, setFirebaseStatus] = useState<string>('Testing...');
+  const [connectionTest, setConnectionTest] = useState<string>('Not tested');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    // Test Firebase environment variables
+    console.log('🔧 Environment Tests:');
+    console.log('Firebase Project ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+    console.log('Environment:', process.env.NEXT_PUBLIC_ENVIRONMENT);
+    console.log('Is Production:', isProduction);
+    console.log('Is Staging:', isStaging);
+    console.log('Firebase API Key:', process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.substring(0, 10) + '...');
+    console.log('Firebase Auth Domain:', process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
+
+    // Test Firebase initialization
+    if (db && auth) {
+      setFirebaseStatus('✅ Firebase initialized successfully');
+      console.log('✅ Firebase Services:', { db, auth });
+      
+      // Test Firestore connection (basic read attempt)
+      testFirestoreConnection();
+    } else {
+      setFirebaseStatus('❌ Firebase initialization failed');
+      console.error('❌ Firebase initialization failed');
+    }
+  }, []);
+
+  const testFirestoreConnection = async () => {
+    try {
+      // Try to read from a test collection (this should work even with security rules)
+      console.log('🔍 Testing Firestore connection...');
+      
+      // This will test the connection but might fail due to security rules (which is expected)
+      const testCollection = collection(db, 'connection-test');
+      await getDocs(testCollection);
+      
+      setConnectionTest('✅ Firestore connection successful');
+      console.log('✅ Firestore connection successful');
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        setConnectionTest('✅ Firestore connected (permission denied expected)');
+        console.log('✅ Firestore connected - Permission denied is expected with security rules');
+      } else if (error.code === 'unavailable') {
+        setConnectionTest('❌ Firestore unavailable - Check internet connection');
+        console.error('❌ Firestore unavailable:', error);
+      } else {
+        setConnectionTest(`⚠️ Firestore error: ${error.code}`);
+        console.error('⚠️ Firestore error:', error);
+      }
+    }
+  };
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-between p-24">
+      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
+        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
+          🇵🇭 Sahod.solutions - Firebase Connection Test
+        </p>
+      </div>
+
+      <div className="relative flex place-items-center flex-col space-y-8">
+        <h1 className="text-4xl font-bold text-center">
+          🇵🇭 Sahod.solutions
+        </h1>
+        
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border">
+          <h2 className="text-xl font-semibold mb-4">🔧 System Status</h2>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Environment:</span>
+              <span className={`px-2 py-1 rounded text-sm ${
+                isProduction ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+              }`}>
+                {process.env.NEXT_PUBLIC_ENVIRONMENT}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Project:</span>
+              <span className="font-mono text-sm">
+                {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Firebase Status:</span>
+              <span className="text-sm">{firebaseStatus}</span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="font-medium">Firestore Test:</span>
+              <span className="text-sm">{connectionTest}</span>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+        <div className="text-center bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+          <p className="text-sm text-yellow-800">
+            📱 <strong>Check browser console</strong> for detailed Firebase connection logs
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
+        <div className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30">
+          <h2 className="mb-3 text-2xl font-semibold">
+            Multi-Tenant Security{' '}
+            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+              🔒
+            </span>
+          </h2>
+          <p className="m-0 max-w-[30ch] text-sm opacity-50">
+            Complete data isolation between companies
+          </p>
+        </div>
+
+        <div className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30">
+          <h2 className="mb-3 text-2xl font-semibold">
+            Philippine Compliance{' '}
+            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+              🇵🇭
+            </span>
+          </h2>
+          <p className="m-0 max-w-[30ch] text-sm opacity-50">
+            SSS, PhilHealth, Pag-IBIG, BIR ready
+          </p>
+        </div>
+
+        <div className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30">
+          <h2 className="mb-3 text-2xl font-semibold">
+            Kiosk Optimized{' '}
+            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+              🏭
+            </span>
+          </h2>
+          <p className="m-0 max-w-[30ch] text-sm opacity-50">
+            Manufacturing plant time tracking
+          </p>
+        </div>
+
+        <div className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30">
+          <h2 className="mb-3 text-2xl font-semibold">
+            Bank Ready{' '}
+            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+              🏦
+            </span>
+          </h2>
+          <p className="m-0 max-w-[30ch] text-sm opacity-50">
+            BPI, BDO, Metrobank CSV export
+          </p>
+        </div>
+      </div>
+    </main>
   );
 }
