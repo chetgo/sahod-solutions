@@ -244,11 +244,11 @@ export const formatPhilippineMobile = (mobile: string): string => {
 };
 
 // Comprehensive validation function for all Philippine business data
-export const validatePhilippineBusinessData = (data: any) => {
+export const validatePhilippineBusinessData = (data: Record<string, unknown>) => {
   const errors: { [key: string]: string } = {};
   
   // Validate TIN
-  if (data.tin) {
+  if (data.tin && typeof data.tin === 'string') {
     const tinResult = validateTIN(data.tin);
     if (!tinResult.isValid) {
       errors.tin = tinResult.message!;
@@ -256,7 +256,7 @@ export const validatePhilippineBusinessData = (data: any) => {
   }
   
   // Validate SSS
-  if (data.sssNumber) {
+  if (data.sssNumber && typeof data.sssNumber === 'string') {
     const sssResult = validateSSS(data.sssNumber);
     if (!sssResult.isValid) {
       errors.sssNumber = sssResult.message!;
@@ -264,7 +264,7 @@ export const validatePhilippineBusinessData = (data: any) => {
   }
   
   // Validate PhilHealth
-  if (data.philhealthNumber) {
+  if (data.philhealthNumber && typeof data.philhealthNumber === 'string') {
     const philhealthResult = validatePhilHealth(data.philhealthNumber);
     if (!philhealthResult.isValid) {
       errors.philhealthNumber = philhealthResult.message!;
@@ -272,7 +272,7 @@ export const validatePhilippineBusinessData = (data: any) => {
   }
   
   // Validate Pag-IBIG
-  if (data.pagibigNumber) {
+  if (data.pagibigNumber && typeof data.pagibigNumber === 'string') {
     const pagibigResult = validatePagIBIG(data.pagibigNumber);
     if (!pagibigResult.isValid) {
       errors.pagibigNumber = pagibigResult.message!;
@@ -280,7 +280,7 @@ export const validatePhilippineBusinessData = (data: any) => {
   }
   
   // Validate mobile number
-  if (data.adminPhone) {
+  if (data.adminPhone && typeof data.adminPhone === 'string') {
     const mobileResult = validatePhilippineMobile(data.adminPhone);
     if (!mobileResult.isValid) {
       errors.adminPhone = mobileResult.message!;

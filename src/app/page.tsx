@@ -43,15 +43,16 @@ export default function Home() {
       
       setConnectionTest('✅ Firestore connection successful');
       console.log('✅ Firestore connection successful');
-    } catch (error: any) {
-      if (error.code === 'permission-denied') {
+    } catch (error: unknown) {
+      const err = error as { code?: string };
+      if (err.code === 'permission-denied') {
         setConnectionTest('✅ Firestore connected (permission denied expected)');
         console.log('✅ Firestore connected - Permission denied is expected with security rules');
-      } else if (error.code === 'unavailable') {
+      } else if (err.code === 'unavailable') {
         setConnectionTest('❌ Firestore unavailable - Check internet connection');
         console.error('❌ Firestore unavailable:', error);
       } else {
-        setConnectionTest(`⚠️ Firestore error: ${error.code}`);
+        setConnectionTest(`⚠️ Firestore error: ${err.code || 'unknown'}`);
         console.error('⚠️ Firestore error:', error);
       }
     }

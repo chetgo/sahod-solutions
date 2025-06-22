@@ -146,34 +146,42 @@ export function canAccessStep(stepId: number, completedSteps: number[], currentS
 // Step validation helpers
 export const stepValidators = {
   // Step 1: Company Info validation
-  validateCompanyInfo: (data: any) => {
+  validateCompanyInfo: (data: Record<string, unknown>) => {
     const errors: string[] = [];
     
-    if (!data.name?.trim()) errors.push('Company name is required');
+    if (!data.name || typeof data.name !== 'string' || !data.name.trim()) {
+      errors.push('Company name is required');
+    }
     if (!data.industry) errors.push('Industry selection is required');
     if (!data.employeeCount) errors.push('Employee count is required');
     if (!data.location) errors.push('Company location is required');
-    if (!data.address?.trim()) errors.push('Company address is required');
-    if (!data.adminName?.trim()) errors.push('Admin name is required');
-    if (!data.adminPhone?.trim()) errors.push('Admin phone number is required');
+    if (!data.address || typeof data.address !== 'string' || !data.address.trim()) {
+      errors.push('Company address is required');
+    }
+    if (!data.adminName || typeof data.adminName !== 'string' || !data.adminName.trim()) {
+      errors.push('Admin name is required');
+    }
+    if (!data.adminPhone || typeof data.adminPhone !== 'string' || !data.adminPhone.trim()) {
+      errors.push('Admin phone number is required');
+    }
     
     return errors;
   },
 
   // Step 2: Business Details validation
-  validateBusinessDetails: (data: any) => {
+  validateBusinessDetails: (data: Record<string, unknown>) => {
     const errors: string[] = [];
     
-    if (!data.tin?.match(/^\d{3}-\d{3}-\d{3}-\d{3}$/)) {
+    if (!data.tin || typeof data.tin !== 'string' || !data.tin.match(/^\d{3}-\d{3}-\d{3}-\d{3}$/)) {
       errors.push('Valid TIN format required (###-###-###-###)');
     }
-    if (!data.sssNumber?.match(/^\d{2}-\d{7}-\d$/)) {
+    if (!data.sssNumber || typeof data.sssNumber !== 'string' || !data.sssNumber.match(/^\d{2}-\d{7}-\d$/)) {
       errors.push('Valid SSS number format required (##-#######-#)');
     }
-    if (!data.philhealthNumber?.match(/^\d{11}$/)) {
+    if (!data.philhealthNumber || typeof data.philhealthNumber !== 'string' || !data.philhealthNumber.match(/^\d{11}$/)) {
       errors.push('Valid PhilHealth number required (11 digits)');
     }
-    if (!data.pagibigNumber?.match(/^\d{13}$/)) {
+    if (!data.pagibigNumber || typeof data.pagibigNumber !== 'string' || !data.pagibigNumber.match(/^\d{13}$/)) {
       errors.push('Valid Pag-IBIG number required (13 digits)');
     }
     if (!data.payrollSchedule) errors.push('Payroll schedule is required');
@@ -183,19 +191,19 @@ export const stepValidators = {
   },
 
   // Step 3: Admin Account validation
-  validateAdminAccount: (data: any) => {
+  validateAdminAccount: (data: Record<string, unknown>) => {
     const errors: string[] = [];
     
-    if (!data.email?.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+    if (!data.email || typeof data.email !== 'string' || !data.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       errors.push('Valid email address is required');
     }
-    if (!data.password || data.password.length < 8) {
+    if (!data.password || typeof data.password !== 'string' || data.password.length < 8) {
       errors.push('Password must be at least 8 characters');
     }
     if (data.password !== data.confirmPassword) {
       errors.push('Passwords do not match');
     }
-    if (!data.companySubdomain?.match(/^[a-z0-9-]+$/)) {
+    if (!data.companySubdomain || typeof data.companySubdomain !== 'string' || !data.companySubdomain.match(/^[a-z0-9-]+$/)) {
       errors.push('Valid company subdomain is required (lowercase, numbers, hyphens only)');
     }
     
@@ -203,11 +211,11 @@ export const stepValidators = {
   },
 
   // Step 4: Plan Selection validation
-  validatePlanSelection: (data: any) => {
+  validatePlanSelection: (data: Record<string, unknown>) => {
     const errors: string[] = [];
     
     if (!data.selectedPlan) errors.push('Plan selection is required');
-    if (!data.employeeCount || data.employeeCount < 1) {
+    if (!data.employeeCount || typeof data.employeeCount !== 'number' || data.employeeCount < 1) {
       errors.push('Valid employee count is required');
     }
     
@@ -215,21 +223,23 @@ export const stepValidators = {
   },
 
   // Step 5: Payment Setup validation
-  validatePaymentSetup: (data: any) => {
+  validatePaymentSetup: (data: Record<string, unknown>) => {
     const errors: string[] = [];
     
     if (!data.paymentMethod) errors.push('Payment method is required');
     if (!data.termsAccepted) errors.push('You must accept the terms of service');
     
     if (data.paymentMethod === 'credit_card') {
-      if (!data.cardNumber?.replace(/\s/g, '').match(/^\d{16}$/)) {
+      if (!data.cardNumber || typeof data.cardNumber !== 'string' || !data.cardNumber.replace(/\s/g, '').match(/^\d{16}$/)) {
         errors.push('Valid 16-digit card number is required');
       }
-      if (!data.cardholderName?.trim()) errors.push('Cardholder name is required');
-      if (!data.expiryDate?.match(/^\d{2}\/\d{2}$/)) {
+      if (!data.cardholderName || typeof data.cardholderName !== 'string' || !data.cardholderName.trim()) {
+        errors.push('Cardholder name is required');
+      }
+      if (!data.expiryDate || typeof data.expiryDate !== 'string' || !data.expiryDate.match(/^\d{2}\/\d{2}$/)) {
         errors.push('Valid expiry date is required (MM/YY)');
       }
-      if (!data.cvv?.match(/^\d{3,4}$/)) {
+      if (!data.cvv || typeof data.cvv !== 'string' || !data.cvv.match(/^\d{3,4}$/)) {
         errors.push('Valid CVV is required (3-4 digits)');
       }
     }

@@ -9,6 +9,10 @@
     "dev-restore": "cp .env.local.backup .env.local && rm .env.local.backup",
     "dev-open": "next dev --turbopack & sleep 2 && open http://localhost:3000",
     "build": "next build",
+    "export": "next build && next export",
+    "deploy": "npm run export && firebase deploy --only hosting",
+    "deploy-staging": "npm run export && firebase use staging && firebase deploy --only hosting",
+    "deploy-prod": "npm run export && firebase use prod && firebase deploy --only hosting",
     "start": "next start",
     "lint": "next lint"
   },

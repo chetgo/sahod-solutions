@@ -2,7 +2,7 @@
 'use client';
 
 import React, { forwardRef, useState } from 'react';
-import { PHILIPPINE_INDUSTRIES } from '../../../lib/validations/philippineValidators';
+import { PHILIPPINE_INDUSTRIES } from '@/lib/validations/philippineValidators';
 
 // Base Input Component
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -341,7 +341,7 @@ export function PhilippineMobileInput({
   required = false 
 }: PhilippineMobileInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
+    const val = e.target.value.replace(/\D/g, '');
     
     // Auto-format as user types
     if (val.startsWith('639')) {

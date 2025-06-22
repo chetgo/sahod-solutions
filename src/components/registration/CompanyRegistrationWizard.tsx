@@ -27,9 +27,7 @@ const PlaceholderStep = ({ stepNumber, title }: { stepNumber: number; title: str
   </div>
 );
 
-interface WizardContentProps {}
-
-function WizardContent({}: WizardContentProps) {
+function WizardContent() {
   const { state, dispatch } = useWizard();
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -334,7 +332,7 @@ function WizardContent({}: WizardContentProps) {
 // Main component with provider
 interface CompanyRegistrationWizardProps {
   initialStep?: number;
-  onComplete?: (data: any) => void;
+  onComplete?: (data: unknown) => void;
 }
 
 export default function CompanyRegistrationWizard({ 
