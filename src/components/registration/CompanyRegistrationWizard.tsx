@@ -1,10 +1,10 @@
-// 📁 src/components/registration/CompanyRegistrationWizard.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import CompanyInformationStep from './steps/CompanyInformationStep';
+import BusinessDetailsStep from './steps/BusinessDetailsStep';
 import { RegistrationService } from '../../lib/firebase/registration';
-import type { RegistrationData, CompanyInfoFormData } from '../../types/registration';
+import type { RegistrationData, CompanyInfoFormData, BusinessDetailsFormData } from '../../types/registration';
 
 export default function CompanyRegistrationWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -51,6 +51,18 @@ export default function CompanyRegistrationWizard() {
     setCurrentStep(2);
   };
 
+  const handleBusinessDetailsNext = (data: BusinessDetailsFormData) => {
+    setRegistrationData(prev => ({
+      ...prev,
+      businessDetails: data
+    }));
+    setCurrentStep(3);
+  };
+
+  const handleStepBack = (targetStep: number) => {
+    setCurrentStep(targetStep);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -88,7 +100,7 @@ export default function CompanyRegistrationWizard() {
               <div key={step} className="flex-1">
                 <div className={`h-2 rounded-full transition-all duration-300 ${
                   step <= currentStep 
-                    ? 'bg-gradient-to-r from-blue-600 to-red-600' 
+                    ? 'bg-gradient-to-r from-blue-600 via-yellow-500 to-red-600' 
                     : 'bg-gray-200'
                 }`} />
               </div>
@@ -112,36 +124,51 @@ export default function CompanyRegistrationWizard() {
           <CompanyInformationStep
             registrationId={registrationId}
             onNext={handleCompanyInfoNext}
-            initialData={registrationData.companyInfo}
+            initialData={registrationData.companyInfo || undefined}
           />
         )}
         
         {currentStep === 2 && (
+          <BusinessDetailsStep
+            registrationId={registrationId}
+            onNext={handleBusinessDetailsNext}
+            onBack={() => handleStepBack(1)}
+            initialData={registrationData.businessDetails || undefined}
+          />
+        )}
+        
+        {currentStep === 3 && (
           <div className="max-w-4xl mx-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                2
+              <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+                3
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Business Compliance Details</h2>
-              <p className="text-gray-600 mb-6">Step 2 is being developed...</p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Coming Next:</strong> TIN, SSS, PhilHealth, and Pag-IBIG validation with real-time formatting
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Account Creation</h2>
+              <p className="text-gray-600 mb-6">Step 3 is coming in Phase 2.3...</p>
+              <div className="bg-blue-100 border border-blue-500 rounded-lg p-4 mb-6">
+                <p className="text-blue-800 text-sm">
+                  <strong>Coming Next:</strong> Email, password, and subdomain setup (yourcompany.sahod.solutions)
                 </p>
               </div>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => setCurrentStep(2)}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
-                  ← Back to Company Information
+                  ← Back to Business Details
+                </button>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  ← Back to Company Info
                 </button>
               </div>
             </div>
           </div>
         )}
         
-        {currentStep > 2 && (
+        {currentStep > 3 && (
           <div className="max-w-4xl mx-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
@@ -156,14 +183,12 @@ export default function CompanyRegistrationWizard() {
                 >
                   ← Back to Step 1
                 </button>
-                {currentStep > 2 && (
-                  <button
-                    onClick={() => setCurrentStep(currentStep - 1)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    ← Previous Step
-                  </button>
-                )}
+                <button
+                  onClick={() => setCurrentStep(currentStep - 1)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  ← Previous Step
+                </button>
               </div>
             </div>
           </div>
@@ -176,6 +201,7 @@ export default function CompanyRegistrationWizard() {
           <div><strong>Registration ID:</strong> {registrationId.slice(-8)}...</div>
           <div><strong>Current Step:</strong> {currentStep}</div>
           <div><strong>Company:</strong> {registrationData.companyInfo?.companyName || 'None'}</div>
+          <div><strong>TIN:</strong> {registrationData.businessDetails?.tin || 'None'}</div>
         </div>
       )}
     </div>

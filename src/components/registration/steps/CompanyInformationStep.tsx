@@ -1,13 +1,13 @@
-// 📁 src/components/registration/steps/CompanyInformationStep.tsx (UPDATE - Fix input styles and performance)
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Building2, MapPin, Users, Phone, Mail, User } from 'lucide-react';
 
-// Import validation schema and data
-import { companyInfoSchema, PHILIPPINE_INDUSTRIES, EMPLOYEE_COUNT_RANGES, PHILIPPINE_REGIONS, METRO_MANILA_CITIES } from '../../../lib/validations/philippineValidators';
+// Import from our efficient structure
+import { companyInfoSchema } from '../../../lib/validations/philippineValidators';
+import { INDUSTRIES, PHILIPPINE_REGIONS, MAJOR_CITIES, EMPLOYEE_RANGES } from '../../../lib/constants/philippineData';
 import { RegistrationService } from '../../../lib/firebase/registration';
 import type { CompanyInfoFormData } from '../../../types/registration';
 
@@ -22,27 +22,19 @@ export default function CompanyInformationStep({
   onNext, 
   initialData 
 }: CompanyInformationStepProps) {
-  const [selectedIndustry, setSelectedIndustry] = useState<string>(initialData?.industry || '');
-  const [selectedRegion, setSelectedRegion] = useState<string>(initialData?.region || '');
+  const [selectedIndustry, setSelectedIndustry] = useState<string>(initialData?.industry || 'healthcare');
+  const [selectedRegion, setSelectedRegion] = useState<string>(initialData?.region || 'National Capital Region (NCR)');
   const [availableCities, setAvailableCities] = useState<string[]>([]);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors, isValid }
-  } = useForm<CompanyInfoFormData>({
+  const form = useForm<CompanyInfoFormData>({
     resolver: zodResolver(companyInfoSchema),
     mode: 'onChange',
     defaultValues: {
       companyName: initialData?.companyName || '',
-      industry: initialData?.industry || '',
-      employeeCount: initialData?.employeeCount || '',
-      region: initialData?.region || '',
+      industry: initialData?.industry || 'healthcare',
+      employeeCount: initialData?.employeeCount || '1-10',
+      region: initialData?.region || 'National Capital Region (NCR)',
       city: initialData?.city || '',
       address: initialData?.address || '',
       adminName: initialData?.adminName || '',
@@ -51,46 +43,22 @@ export default function CompanyInformationStep({
     }
   });
 
+  const { register, handleSubmit, watch, setValue, formState: { errors, isValid } } = form;
   const watchedValues = watch();
-
-  // Memoize auto-saver to prevent recreation on every render
-  const autoSaver = useMemo(() => 
-    RegistrationService.createAutoSaver(registrationId, 1), 
-    [registrationId]
-  );
 
   // Update available cities when region changes
   useEffect(() => {
-    if (selectedRegion.includes('National Capital Region')) {
-      setAvailableCities(METRO_MANILA_CITIES);
-    } else {
-      setAvailableCities([]);
+    const cities = MAJOR_CITIES[selectedRegion as keyof typeof MAJOR_CITIES] || [];
+    setAvailableCities(cities);
+    
+    // Reset city if region changed and current city is not in new region
+    if (selectedRegion !== initialData?.region && cities.length > 0 && !cities.includes(watchedValues.city)) {
+      setValue('city', '', { shouldValidate: true });
     }
-    if (selectedRegion !== initialData?.region) {
-      setValue('city', '');
-    }
-  }, [selectedRegion, setValue, initialData?.region]);
+  }, [selectedRegion, setValue, initialData?.region, watchedValues.city]);
 
-  // Optimized auto-save functionality with debouncing
-  useEffect(() => {
-    // Only auto-save if we have meaningful data
-    if (watchedValues.companyName && watchedValues.companyName.length >= 3) {
-      setIsAutoSaving(true);
-      
-      autoSaver(watchedValues);
-      
-      // Set saved indicator after a short delay
-      const timer = setTimeout(() => {
-        setIsAutoSaving(false);
-        setLastSaved(new Date());
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [watchedValues.companyName, watchedValues.adminName, watchedValues.adminEmail, autoSaver]);
-
-  const onSubmit = useCallback(async (data: CompanyInfoFormData) => {
-    if (isSubmitting) return; // Prevent double submission
+  const onSubmit: SubmitHandler<CompanyInfoFormData> = useCallback(async (data) => {
+    if (isSubmitting) return;
     
     setIsSubmitting(true);
     try {
@@ -104,29 +72,23 @@ export default function CompanyInformationStep({
     }
   }, [registrationId, onNext, isSubmitting]);
 
-  const handleIndustrySelect = useCallback((industryCode: string) => {
-    setSelectedIndustry(industryCode);
-    setValue('industry', industryCode, { shouldValidate: true });
+  const handleIndustrySelect = useCallback((industryId: string) => {
+    setSelectedIndustry(industryId);
+    setValue('industry', industryId as any, { shouldValidate: true, shouldDirty: true });
   }, [setValue]);
 
-  const handleRegionChange = useCallback((region: string) => {
+  const handleRegionChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const region = e.target.value;
     setSelectedRegion(region);
-    setValue('region', region, { shouldValidate: true });
+    setValue('region', region, { shouldValidate: true, shouldDirty: true });
+    setValue('city', '', { shouldValidate: true, shouldDirty: true });
   }, [setValue]);
 
-  const handleSaveDraft = useCallback(async () => {
-    try {
-      await RegistrationService.saveCompanyInfo(registrationId, watchedValues);
-      alert('Draft saved successfully!');
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      alert('Failed to save draft. Please try again.');
-    }
-  }, [registrationId, watchedValues]);
+  const popularIndustries = useMemo(() => INDUSTRIES.filter(industry => industry.popular), []);
+  const otherIndustries = useMemo(() => INDUSTRIES.filter(industry => !industry.popular), []);
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-red-600 rounded-lg flex items-center justify-center text-white text-xl font-bold">
@@ -138,25 +100,11 @@ export default function CompanyInformationStep({
           </div>
         </div>
 
-        {/* Auto-save indicator - Only show when actually saving */}
-        <div className="flex items-center gap-2 text-sm min-h-[20px]">
-          {isAutoSaving && (
-            <div className="flex items-center gap-2 text-blue-600">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span>Auto-saving...</span>
-            </div>
-          )}
-          {!isAutoSaving && lastSaved && (
-            <div className="flex items-center gap-2 text-green-600">
-              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-              <span>Saved {lastSaved.toLocaleTimeString()}</span>
-            </div>
-          )}
+        <div className="flex items-center gap-2 text-sm h-5">
         </div>
       </div>
 
-      <div className="space-y-8">
-        {/* Company Name */}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <Building2 className="w-4 h-4 text-blue-600" />
@@ -174,30 +122,55 @@ export default function CompanyInformationStep({
           <p className="text-gray-500 text-sm">This will appear on your payslips and reports</p>
         </div>
 
-        {/* Industry Selection */}
         <div className="space-y-4">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <Users className="w-4 h-4 text-blue-600" />
             Industry *
           </label>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {PHILIPPINE_INDUSTRIES.map((industry) => (
-              <div
-                key={industry.code}
-                onClick={() => handleIndustrySelect(industry.code)}
-                className={`
-                  border-2 rounded-lg p-3 cursor-pointer transition-all hover:shadow-md text-center
-                  ${selectedIndustry === industry.code 
-                    ? 'border-blue-500 bg-blue-50 shadow-md' 
-                    : 'border-gray-200 hover:border-blue-300 bg-white'
-                  }
-                `}
-              >
-                <div className="text-xl mb-1">{industry.icon}</div>
-                <div className="font-medium text-sm text-gray-900">{industry.name}</div>
-              </div>
-            ))}
+          <div>
+            <div className="text-sm font-medium text-gray-700 mb-3">Popular Industries</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {popularIndustries.map((industry) => (
+                <div
+                  key={industry.id}
+                  onClick={() => handleIndustrySelect(industry.id)}
+                  className={`
+                    border-2 rounded-lg p-3 cursor-pointer transition-all hover:shadow-md text-center
+                    ${selectedIndustry === industry.id 
+                      ? 'border-blue-500 bg-blue-50 shadow-md' 
+                      : 'border-gray-200 hover:border-blue-300 bg-white'
+                    }
+                  `}
+                >
+                  <div className="text-xl mb-1">{industry.icon}</div>
+                  <div className="font-medium text-sm text-gray-900">{industry.name}</div>
+                  <div className="text-xs text-gray-600 mt-1">{industry.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium text-gray-700 mb-3">Other Industries</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {otherIndustries.map((industry) => (
+                <div
+                  key={industry.id}
+                  onClick={() => handleIndustrySelect(industry.id)}
+                  className={`
+                    border-2 rounded-lg p-3 cursor-pointer transition-all hover:shadow-md text-center
+                    ${selectedIndustry === industry.id 
+                      ? 'border-blue-500 bg-blue-50 shadow-md' 
+                      : 'border-gray-200 hover:border-blue-300 bg-white'
+                    }
+                  `}
+                >
+                  <div className="text-lg mb-1">{industry.icon}</div>
+                  <div className="font-medium text-xs text-gray-900">{industry.name}</div>
+                </div>
+              ))}
+            </div>
           </div>
           
           <input type="hidden" {...register('industry')} />
@@ -206,7 +179,6 @@ export default function CompanyInformationStep({
           )}
         </div>
 
-        {/* Employee Count and Region */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -217,10 +189,9 @@ export default function CompanyInformationStep({
               {...register('employeeCount')}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
             >
-              <option value="" className="text-gray-500">Select employee count</option>
-              {EMPLOYEE_COUNT_RANGES.map((range) => (
+              {EMPLOYEE_RANGES.map((range) => (
                 <option key={range.value} value={range.value} className="text-gray-900">
-                  {range.label}
+                  {range.label} {range.popular ? '⭐' : ''}
                 </option>
               ))}
             </select>
@@ -232,16 +203,15 @@ export default function CompanyInformationStep({
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <MapPin className="w-4 h-4 text-blue-600" />
-              Region *
+              Philippine Region *
             </label>
             <select
               {...register('region')}
-              onChange={(e) => handleRegionChange(e.target.value)}
+              onChange={handleRegionChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
             >
-              <option value="" className="text-gray-500">Select region</option>
               {PHILIPPINE_REGIONS.map((region) => (
-                <option key={region.code} value={region.name} className="text-gray-900">{region.name}</option>
+                <option key={region} value={region} className="text-gray-900">{region}</option>
               ))}
             </select>
             {errors.region && (
@@ -250,12 +220,11 @@ export default function CompanyInformationStep({
           </div>
         </div>
 
-        {/* City and Address */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <MapPin className="w-4 h-4 text-blue-600" />
-              City *
+              City/Municipality *
             </label>
             {availableCities.length > 0 ? (
               <select
@@ -298,7 +267,6 @@ export default function CompanyInformationStep({
           </div>
         </div>
 
-        {/* Admin Information */}
         <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-blue-900 mb-4">
             <User className="w-5 h-5" />
@@ -355,7 +323,6 @@ export default function CompanyInformationStep({
           </div>
         </div>
 
-        {/* Form Actions */}
         <div className="flex justify-between items-center pt-6 border-t border-gray-200">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
@@ -364,16 +331,7 @@ export default function CompanyInformationStep({
 
           <div className="flex gap-3">
             <button
-              type="button"
-              onClick={handleSaveDraft}
-              disabled={!watchedValues.companyName}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save as Draft
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit(onSubmit)}
+              type="submit"
               disabled={!isValid || isSubmitting}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
@@ -391,9 +349,8 @@ export default function CompanyInformationStep({
             </button>
           </div>
         </div>
-      </div>
+      </form>
 
-      {/* Progress Indicator */}
       <div className="mt-8 text-center">
         <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
           <div className="w-8 h-1 bg-blue-600 rounded-full"></div>

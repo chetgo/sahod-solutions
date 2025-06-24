@@ -1,8 +1,12 @@
-// 📁 src/types/registration.ts
+// Extract industry type from constants  
+import { INDUSTRIES } from '../lib/constants/philippineData';
+type IndustryType = typeof INDUSTRIES[number]['id'];
+
+// Step 1: Company Information
 export interface CompanyInfoFormData {
   companyName: string;
-  industry: string;
-  employeeCount: string;
+  industry: IndustryType;
+  employeeCount: '1-10' | '11-25' | '26-50' | '51-100' | '101-250' | '251-500' | '500+';
   region: string;
   city: string;
   address: string;
@@ -11,16 +15,22 @@ export interface CompanyInfoFormData {
   adminPhone: string;
 }
 
+// Step 2: Business Compliance Details
 export interface BusinessDetailsFormData {
   tin: string;
   sssNumber: string;
   philhealthNumber: string;
   pagibigNumber: string;
-  businessRegistration: string;
-  payrollSchedule: string;
-  workingDays: string;
+  businessRegistrationType: 'sec' | 'dti' | 'cda' | 'other';
+  businessRegistration?: string;
+  payrollSchedule: 'weekly' | 'bi-monthly' | 'monthly';
+  workingDays: 'mon-fri' | 'mon-sat' | 'custom';
+  overtimeRate: number;
+  nightDifferentialRate: number;
+  holidayRate: number;
 }
 
+// Step 3: Admin Account Creation
 export interface AdminAccountFormData {
   email: string;
   password: string;
@@ -28,29 +38,74 @@ export interface AdminAccountFormData {
   subdomain: string;
 }
 
+// Step 4: Plan Selection
 export interface PlanSelectionFormData {
-  selectedPlan: 'starter' | 'professional' | 'enterprise';
-  billingCycle: 'monthly' | 'annually';
+  planTier: 'starter' | 'professional' | 'enterprise';
+  billingCycle: 'monthly' | 'annual';
+  agreedToTerms: boolean;
 }
 
+// Step 5: Payment Setup
 export interface PaymentFormData {
-  paymentMethod: 'card' | 'gcash' | 'bank_transfer';
+  paymentMethod: 'credit_card' | 'gcash' | 'bank_transfer';
   cardNumber?: string;
-  cardName?: string;
+  cardholderName?: string;
   expiryDate?: string;
   cvv?: string;
-  termsAccepted: boolean;
+  agreedToTerms: boolean;
 }
 
+// Complete Registration Data
 export interface RegistrationData {
-  companyInfo: CompanyInfoFormData;
-  businessDetails: BusinessDetailsFormData;
-  adminAccount: AdminAccountFormData;
-  planSelection: PlanSelectionFormData;
-  payment: PaymentFormData;
+  registrationId: string;
   currentStep: number;
   completedSteps: number[];
-  createdAt: string;
-  updatedAt: string;
+  
+  // Step data (null until completed)
+  companyInfo: CompanyInfoFormData | null;
+  businessDetails: BusinessDetailsFormData | null;
+  adminAccount: AdminAccountFormData | null;
+  planSelection: PlanSelectionFormData | null;
+  payment: PaymentFormData | null;
+  
+  // Metadata
+  createdAt?: any;
+  updatedAt?: any;
+  expiresAt?: any;
 }
 
+// Auto-save status
+export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+// Step validation status
+export interface StepValidation {
+  isValid: boolean;
+  errors: string[];
+}
+
+// Registration context
+export interface RegistrationContextType {
+  registrationData: RegistrationData;
+  currentStep: number;
+  completedSteps: number[];
+  isLoading: boolean;
+  autoSaveStatus: AutoSaveStatus;
+  
+  // Actions
+  updateRegistrationData: (updates: Partial<RegistrationData>) => void;
+  setCurrentStep: (step: number) => void;
+  markStepCompleted: (step: number) => void;
+  validateStep: (step: number) => StepValidation;
+  
+  // Navigation
+  goToStep: (step: number) => void;
+  goToNextStep: () => void;
+  goToPreviousStep: () => void;
+  canGoToStep: (step: number) => boolean;
+  
+  // Registration management
+  registrationId: string | null;
+  saveCurrentStep: () => Promise<void>;
+  loadRegistration: (regId: string) => Promise<void>;
+  createNewRegistration: () => void;
+}
