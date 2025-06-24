@@ -3,8 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import CompanyInformationStep from './steps/CompanyInformationStep';
 import BusinessDetailsStep from './steps/BusinessDetailsStep';
+import AdminAccountStep from './steps/AdminAccountStep';
 import { RegistrationService } from '../../lib/firebase/registration';
-import type { RegistrationData, CompanyInfoFormData, BusinessDetailsFormData } from '../../types/registration';
+import type { 
+  RegistrationData, 
+  CompanyInfoFormData, 
+  BusinessDetailsFormData,
+  AdminAccountFormData 
+} from '../../types/registration';
 
 export default function CompanyRegistrationWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -57,6 +63,14 @@ export default function CompanyRegistrationWizard() {
       businessDetails: data
     }));
     setCurrentStep(3);
+  };
+
+  const handleAdminAccountNext = (data: AdminAccountFormData) => {
+    setRegistrationData(prev => ({
+      ...prev,
+      adminAccount: data
+    }));
+    setCurrentStep(4);
   };
 
   const handleStepBack = (targetStep: number) => {
@@ -138,24 +152,33 @@ export default function CompanyRegistrationWizard() {
         )}
         
         {currentStep === 3 && (
+          <AdminAccountStep
+            registrationId={registrationId}
+            onNext={handleAdminAccountNext}
+            onBack={() => handleStepBack(2)}
+            initialData={registrationData.adminAccount || undefined}
+          />
+        )}
+        
+        {currentStep === 4 && (
           <div className="max-w-4xl mx-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                3
+                4
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Account Creation</h2>
-              <p className="text-gray-600 mb-6">Step 3 is coming in Phase 2.3...</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Plan Selection</h2>
+              <p className="text-gray-600 mb-6">Step 4 is coming in Phase 2.4...</p>
               <div className="bg-blue-100 border border-blue-500 rounded-lg p-4 mb-6">
                 <p className="text-blue-800 text-sm">
-                  <strong>Coming Next:</strong> Email, password, and subdomain setup (yourcompany.sahod.solutions)
+                  <strong>Coming Next:</strong> Choose your subscription plan (Starter, Professional, Enterprise)
                 </p>
               </div>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => setCurrentStep(3)}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
-                  ← Back to Business Details
+                  ← Back to Admin Account
                 </button>
                 <button
                   onClick={() => setCurrentStep(1)}
@@ -168,7 +191,7 @@ export default function CompanyRegistrationWizard() {
           </div>
         )}
         
-        {currentStep > 3 && (
+        {currentStep > 4 && (
           <div className="max-w-4xl mx-auto p-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-lg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
@@ -202,6 +225,8 @@ export default function CompanyRegistrationWizard() {
           <div><strong>Current Step:</strong> {currentStep}</div>
           <div><strong>Company:</strong> {registrationData.companyInfo?.companyName || 'None'}</div>
           <div><strong>TIN:</strong> {registrationData.businessDetails?.tin || 'None'}</div>
+          <div><strong>Email:</strong> {registrationData.adminAccount?.email || 'None'}</div>
+          <div><strong>Subdomain:</strong> {registrationData.adminAccount?.subdomain || 'None'}</div>
         </div>
       )}
     </div>

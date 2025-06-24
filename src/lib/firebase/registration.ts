@@ -14,7 +14,8 @@ import { db } from '../firebase';
 import { 
   RegistrationData, 
   CompanyInfoFormData, 
-  BusinessDetailsFormData 
+  BusinessDetailsFormData,
+  AdminAccountFormData 
 } from '../../types/registration';
 
 export class RegistrationService {
@@ -122,6 +123,51 @@ export class RegistrationService {
     }
   }
 
+  // Save admin account (Step 3) - NEW
+  static async saveAdminAccount(
+    registrationId: string, 
+    data: AdminAccountFormData
+  ): Promise<void> {
+    try {
+      const registrationRef = this.getRegistrationRef(registrationId);
+      const existingDoc = await getDoc(registrationRef);
+      
+      if (existingDoc.exists()) {
+        const existingData = existingDoc.data();
+        const completedSteps = existingData.completedSteps || [];
+        const updatedCompletedSteps = completedSteps.includes(3) 
+          ? completedSteps 
+          : [...completedSteps, 3].sort();
+
+        await updateDoc(registrationRef, {
+          adminAccount: data,
+          currentStep: Math.max(existingData.currentStep || 3, 3),
+          completedSteps: updatedCompletedSteps,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Create new registration with admin account (shouldn't happen normally)
+        const newRegistration = {
+          registrationId,
+          companyInfo: null,
+          businessDetails: null,
+          adminAccount: data,
+          planSelection: null,
+          payment: null,
+          currentStep: 3,
+          completedSteps: [3],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        };
+        await setDoc(registrationRef, newRegistration);
+      }
+    } catch (error) {
+      console.error('Error saving admin account:', error);
+      throw new Error('Failed to save admin account');
+    }
+  }
+
   // Get registration data
   static async getRegistration(registrationId: string): Promise<RegistrationData | null> {
     try {
@@ -158,36 +204,115 @@ export class RegistrationService {
     }
   }
 
-  // Check subdomain availability
-  static async checkSubdomainAvailability(subdomain: string): Promise<boolean> {
+  // Check subdomain availability - ENHANCED
+  static async checkSubdomainAvailability(
+    subdomain: string, 
+    currentRegistrationId?: string
+  ): Promise<boolean> {
     try {
+      const normalizedSubdomain = subdomain.toLowerCase().trim();
+      
+      // Basic validation
+      if (!normalizedSubdomain || normalizedSubdomain.length < 3 || normalizedSubdomain.length > 30) {
+        return false;
+      }
+
+      // Reserved subdomains that cannot be used
+      const reservedSubdomains = [
+        'www', 'api', 'admin', 'app', 'dashboard', 'staging', 'test', 'dev', 
+        'development', 'prod', 'production', 'demo', 'blog', 'support', 
+        'help', 'docs', 'documentation', 'mail', 'email', 'ftp', 'cdn',
+        'assets', 'static', 'media', 'files', 'download', 'upload',
+        'sahod', 'payroll', 'hr', 'human-resources', 'philippines', 'filipino'
+      ];
+
+      if (reservedSubdomains.includes(normalizedSubdomain)) {
+        return false;
+      }
+
       // Check in companies collection for existing subdomains
       const companiesQuery = query(
         collection(db, 'companies'),
-        where('subdomain', '==', subdomain.toLowerCase()),
+        where('subdomain', '==', normalizedSubdomain),
         limit(1)
       );
       
       const companiesSnapshot = await getDocs(companiesQuery);
       
       if (!companiesSnapshot.empty) {
-        return false; // Subdomain already taken
+        return false; // Subdomain already taken by a company
       }
 
-      // Check in draft registrations for pending subdomains
+      // Check in draft registrations for pending subdomains (exclude current registration)
       const draftsQuery = query(
         collection(db, this.COLLECTION_NAME),
-        where('adminAccount.subdomain', '==', subdomain.toLowerCase()),
-        limit(1)
+        where('adminAccount.subdomain', '==', normalizedSubdomain),
+        limit(5) // Get a few to check if any are different from current
       );
       
       const draftsSnapshot = await getDocs(draftsQuery);
       
-      return draftsSnapshot.empty; // Available if no drafts found
+      // If no drafts found, it's available
+      if (draftsSnapshot.empty) {
+        return true;
+      }
+      
+      // If drafts found, check if any belong to a different registration
+      const conflictingDrafts = draftsSnapshot.docs.filter(doc => 
+        doc.data().registrationId !== currentRegistrationId
+      );
+      
+      return conflictingDrafts.length === 0; // Available if no conflicting drafts
     } catch (error) {
       console.error('Error checking subdomain availability:', error);
       // Return false for safety - assume unavailable on error
       return false;
+    }
+  }
+
+  // Generate subdomain suggestions - NEW
+  static async generateSubdomainSuggestions(baseName: string): Promise<string[]> {
+    try {
+      const baseSubdomain = baseName
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 20);
+
+      const suggestions: string[] = [];
+      
+      // Try base subdomain
+      if (await this.checkSubdomainAvailability(baseSubdomain)) {
+        suggestions.push(baseSubdomain);
+      }
+      
+      // Try with suffixes
+      const suffixes = ['inc', 'corp', 'ltd', 'co', 'group', 'ph', 'manila'];
+      for (const suffix of suffixes) {
+        const suggestion = `${baseSubdomain}-${suffix}`;
+        if (suggestion.length <= 30 && await this.checkSubdomainAvailability(suggestion)) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 5) break;
+        }
+      }
+      
+      // Try with numbers if still need more
+      if (suggestions.length < 5) {
+        for (let i = 2; i <= 99; i++) {
+          const suggestion = `${baseSubdomain}${i}`;
+          if (suggestion.length <= 30 && await this.checkSubdomainAvailability(suggestion)) {
+            suggestions.push(suggestion);
+            if (suggestions.length >= 5) break;
+          }
+        }
+      }
+      
+      return suggestions;
+    } catch (error) {
+      console.error('Error generating subdomain suggestions:', error);
+      return [];
     }
   }
 
@@ -205,6 +330,9 @@ export class RegistrationService {
               break;
             case 2:
               await this.saveBusinessDetails(registrationId, data);
+              break;
+            case 3:
+              await this.saveAdminAccount(registrationId, data);
               break;
             // Add other steps as we implement them
             default:
