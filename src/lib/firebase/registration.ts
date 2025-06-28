@@ -1,3 +1,5 @@
+// src/lib/firebase/registration.ts
+
 import { 
   collection, 
   doc, 
@@ -10,19 +12,28 @@ import {
   getDocs,
   limit
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '../firebase';
 import { 
-  RegistrationData, 
-  CompanyInfoFormData, 
-  BusinessDetailsFormData,
-  AdminAccountFormData 
+  RegistrationData,
+  CompanyInfoFormData,
+  AdminAccountFormData,
+  TrialActivationFormData,
+  CompanyDocument,
+  BusinessDetailsFormData
 } from '../../types/registration';
 
 export class RegistrationService {
   private static COLLECTION_NAME = 'draft_registrations';
+  private static COMPANIES_COLLECTION = 'companies';
+  private static USERS_COLLECTION = 'users';
 
   private static getRegistrationRef(registrationId: string) {
     return doc(db, this.COLLECTION_NAME, registrationId);
+  }
+
+  private static getCompanyRef(companyId: string) {
+    return doc(db, this.COMPANIES_COLLECTION, companyId);
   }
 
   // Generate unique registration ID
@@ -32,7 +43,7 @@ export class RegistrationService {
     return `reg_${timestamp}_${random}`;
   }
 
-  // Save company information (Step 1)
+  // Save company information (Step 1 - 3 fields only)
   static async saveCompanyInfo(
     registrationId: string, 
     data: CompanyInfoFormData
@@ -43,29 +54,23 @@ export class RegistrationService {
       
       if (existingDoc.exists()) {
         // Update existing registration
-        const existingData = existingDoc.data();
-        const completedSteps = existingData.completedSteps || [];
-        const updatedCompletedSteps = completedSteps.includes(1) 
-          ? completedSteps 
-          : [...completedSteps, 1].sort();
-
         await updateDoc(registrationRef, {
           companyInfo: data,
-          currentStep: Math.max(existingData.currentStep || 1, 1),
-          completedSteps: updatedCompletedSteps,
+          currentStep: 1,
+          completedSteps: [1],
           updatedAt: serverTimestamp()
         });
       } else {
         // Create new registration
-        const newRegistration = {
+        const newRegistration: Partial<RegistrationData> = {
           registrationId,
           companyInfo: data,
-          businessDetails: null,
           adminAccount: null,
-          planSelection: null,
-          payment: null,
+          trialActivation: null,
           currentStep: 1,
           completedSteps: [1],
+          isTrialActivated: false,
+          companyCreated: false,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
@@ -78,10 +83,10 @@ export class RegistrationService {
     }
   }
 
-  // Save business details (Step 2) 
-  static async saveBusinessDetails(
+  // Save admin account (Step 2 - 5 fields)
+  static async saveAdminAccount(
     registrationId: string, 
-    data: BusinessDetailsFormData
+    data: AdminAccountFormData
   ): Promise<void> {
     try {
       const registrationRef = this.getRegistrationRef(registrationId);
@@ -95,76 +100,119 @@ export class RegistrationService {
           : [...completedSteps, 2].sort();
 
         await updateDoc(registrationRef, {
-          businessDetails: data,
-          currentStep: Math.max(existingData.currentStep || 2, 2),
-          completedSteps: updatedCompletedSteps,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        // Create new registration with business details (shouldn't happen normally)
-        const newRegistration = {
-          registrationId,
-          companyInfo: null,
-          businessDetails: data,
-          adminAccount: null,
-          planSelection: null,
-          payment: null,
+          adminAccount: data,
           currentStep: 2,
-          completedSteps: [2],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        };
-        await setDoc(registrationRef, newRegistration);
-      }
-    } catch (error) {
-      console.error('Error saving business details:', error);
-      throw new Error('Failed to save business details');
-    }
-  }
-
-  // Save admin account (Step 3) - NEW
-  static async saveAdminAccount(
-    registrationId: string, 
-    data: AdminAccountFormData
-  ): Promise<void> {
-    try {
-      const registrationRef = this.getRegistrationRef(registrationId);
-      const existingDoc = await getDoc(registrationRef);
-      
-      if (existingDoc.exists()) {
-        const existingData = existingDoc.data();
-        const completedSteps = existingData.completedSteps || [];
-        const updatedCompletedSteps = completedSteps.includes(3) 
-          ? completedSteps 
-          : [...completedSteps, 3].sort();
-
-        await updateDoc(registrationRef, {
-          adminAccount: data,
-          currentStep: Math.max(existingData.currentStep || 3, 3),
           completedSteps: updatedCompletedSteps,
           updatedAt: serverTimestamp()
         });
       } else {
-        // Create new registration with admin account (shouldn't happen normally)
-        const newRegistration = {
-          registrationId,
-          companyInfo: null,
-          businessDetails: null,
-          adminAccount: data,
-          planSelection: null,
-          payment: null,
-          currentStep: 3,
-          completedSteps: [3],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        };
-        await setDoc(registrationRef, newRegistration);
+        throw new Error('Registration not found');
       }
     } catch (error) {
       console.error('Error saving admin account:', error);
       throw new Error('Failed to save admin account');
+    }
+  }
+
+  // Activate trial and create company (Step 3)
+  static async activateTrialAndCreateCompany(
+    registrationId: string, 
+    data: TrialActivationFormData
+  ): Promise<string> {
+    try {
+      // Get registration data
+      const registrationRef = this.getRegistrationRef(registrationId);
+      const regDoc = await getDoc(registrationRef);
+      
+      if (!regDoc.exists()) {
+        throw new Error('Registration not found');
+      }
+      
+      const regData = regDoc.data() as RegistrationData;
+      
+      if (!regData.companyInfo || !regData.adminAccount) {
+        throw new Error('Incomplete registration data');
+      }
+
+      // Create Firebase auth user
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        regData.adminAccount.email, 
+        regData.adminAccount.password
+      );
+      
+      const userId = userCredential.user.uid;
+      const companyId = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Create company document
+      const trialStartDate = new Date();
+      const trialEndDate = new Date(trialStartDate.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days
+
+      const companyDoc: CompanyDocument = {
+        companyId,
+        subdomain: regData.adminAccount.subdomain,
+        companyName: regData.companyInfo.companyName,
+        industry: regData.companyInfo.industry,
+        address: regData.companyInfo.address,
+        adminName: regData.adminAccount.fullName,
+        adminEmail: regData.adminAccount.email,
+        adminPhone: regData.adminAccount.phone,
+        trialStartDate: trialStartDate,
+        trialEndDate: trialEndDate,
+        isTrialActive: true,
+        setupProgress: {
+          businessDetails: false,
+          firstEmployee: false,
+          paymentMethod: false,
+          kioskSetup: false,
+          bankIntegration: false
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      // Create user document
+      const userDoc = {
+        userId,
+        companyId,
+        email: regData.adminAccount.email,
+        fullName: regData.adminAccount.fullName,
+        phone: regData.adminAccount.phone,
+        role: 'admin',
+        permissions: ['all'],
+        employment: {
+          position: 'Company Administrator',
+          department: 'Management',
+          status: 'active',
+          start_date: new Date().toISOString().split('T')[0]
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      // Save to Firebase
+      await Promise.all([
+        setDoc(this.getCompanyRef(companyId), companyDoc),
+        setDoc(doc(db, this.USERS_COLLECTION, userId), userDoc)
+      ]);
+      
+      // Update registration as completed
+      await updateDoc(registrationRef, {
+        trialActivation: data,
+        currentStep: 3,
+        completedSteps: [1, 2, 3],
+        isTrialActivated: true,
+        companyCreated: true,
+        companyId: companyId,
+        userId: userId,
+        updatedAt: serverTimestamp()
+      });
+      
+      return regData.adminAccount.subdomain;
+      
+    } catch (error) {
+      console.error('Error activating trial:', error);
+      throw new Error('Failed to activate trial and create company');
     }
   }
 
@@ -188,10 +236,10 @@ export class RegistrationService {
           currentStep: data.currentStep || 1,
           completedSteps: data.completedSteps || [],
           companyInfo: data.companyInfo || null,
-          businessDetails: data.businessDetails || null,
           adminAccount: data.adminAccount || null,
-          planSelection: data.planSelection || null,
-          payment: data.payment || null,
+          trialActivation: data.trialActivation || null,
+          isTrialActivated: data.isTrialActivated || false,
+          companyCreated: data.companyCreated || false,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt
         };
@@ -204,151 +252,92 @@ export class RegistrationService {
     }
   }
 
-  // Check subdomain availability - ENHANCED
-  static async checkSubdomainAvailability(
-    subdomain: string, 
-    currentRegistrationId?: string
-  ): Promise<boolean> {
+  // Check subdomain availability with self-exclusion
+  static async checkSubdomainAvailability(subdomain: string, currentRegistrationId?: string): Promise<boolean> {
     try {
-      const normalizedSubdomain = subdomain.toLowerCase().trim();
-      
-      // Basic validation
-      if (!normalizedSubdomain || normalizedSubdomain.length < 3 || normalizedSubdomain.length > 30) {
-        return false;
-      }
-
-      // Reserved subdomains that cannot be used
+      // Reserved subdomains
       const reservedSubdomains = [
-        'www', 'api', 'admin', 'app', 'dashboard', 'staging', 'test', 'dev', 
-        'development', 'prod', 'production', 'demo', 'blog', 'support', 
-        'help', 'docs', 'documentation', 'mail', 'email', 'ftp', 'cdn',
-        'assets', 'static', 'media', 'files', 'download', 'upload',
-        'sahod', 'payroll', 'hr', 'human-resources', 'philippines', 'filipino'
+        'www', 'api', 'admin', 'support', 'help', 'mail', 'email', 'ftp', 'ssh',
+        'secure', 'ssl', 'app', 'mobile', 'dev', 'test', 'staging', 'production',
+        'sahod', 'payroll', 'hrms', 'hris', 'dashboard', 'portal', 'login',
+        'register', 'signup', 'signin', 'auth', 'oauth', 'sso', 'account',
+        'billing', 'payment', 'invoice', 'receipt', 'finance', 'accounting'
       ];
 
-      if (reservedSubdomains.includes(normalizedSubdomain)) {
+      if (reservedSubdomains.includes(subdomain.toLowerCase())) {
         return false;
       }
 
-      // Check in companies collection for existing subdomains
+      // Check if subdomain exists in companies collection
       const companiesQuery = query(
-        collection(db, 'companies'),
-        where('subdomain', '==', normalizedSubdomain),
+        collection(db, this.COMPANIES_COLLECTION),
+        where('subdomain', '==', subdomain),
         limit(1)
       );
       
       const companiesSnapshot = await getDocs(companiesQuery);
-      
       if (!companiesSnapshot.empty) {
         return false; // Subdomain already taken by a company
       }
 
-      // Check in draft registrations for pending subdomains (exclude current registration)
-      const draftsQuery = query(
+      // Check if subdomain exists in draft registrations (excluding current registration)
+      const registrationQuery = query(
         collection(db, this.COLLECTION_NAME),
-        where('adminAccount.subdomain', '==', normalizedSubdomain),
-        limit(5) // Get a few to check if any are different from current
+        where('adminAccount.subdomain', '==', subdomain),
+        limit(10) // Get more results to filter out current registration
       );
       
-      const draftsSnapshot = await getDocs(draftsQuery);
+      const registrationSnapshot = await getDocs(registrationQuery);
       
-      // If no drafts found, it's available
-      if (draftsSnapshot.empty) {
+      // Filter out current registration and expired registrations
+      const conflictingRegistrations = registrationSnapshot.docs.filter(docSnapshot => {
+        const data = docSnapshot.data();
+        
+        // Skip current registration
+        if (currentRegistrationId && docSnapshot.id === currentRegistrationId) {
+          return false;
+        }
+        
+        // Skip expired registrations
+        const expiresAt = data.expiresAt?.toDate?.() || data.expiresAt;
+        if (expiresAt && new Date(expiresAt) < new Date()) {
+          return false;
+        }
+        
         return true;
-      }
+      });
+
+      return conflictingRegistrations.length === 0;
       
-      // If drafts found, check if any belong to a different registration
-      const conflictingDrafts = draftsSnapshot.docs.filter(doc => 
-        doc.data().registrationId !== currentRegistrationId
-      );
-      
-      return conflictingDrafts.length === 0; // Available if no conflicting drafts
     } catch (error) {
       console.error('Error checking subdomain availability:', error);
-      // Return false for safety - assume unavailable on error
-      return false;
+      return false; // Assume unavailable on error for safety
     }
   }
 
-  // Generate subdomain suggestions - NEW
-  static async generateSubdomainSuggestions(baseName: string): Promise<string[]> {
+  // Save business details (for dashboard setup)
+  static async saveBusinessDetails(
+    companyId: string, 
+    data: BusinessDetailsFormData
+  ): Promise<void> {
     try {
-      const baseSubdomain = baseName
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '')
-        .substring(0, 20);
-
-      const suggestions: string[] = [];
-      
-      // Try base subdomain
-      if (await this.checkSubdomainAvailability(baseSubdomain)) {
-        suggestions.push(baseSubdomain);
-      }
-      
-      // Try with suffixes
-      const suffixes = ['inc', 'corp', 'ltd', 'co', 'group', 'ph', 'manila'];
-      for (const suffix of suffixes) {
-        const suggestion = `${baseSubdomain}-${suffix}`;
-        if (suggestion.length <= 30 && await this.checkSubdomainAvailability(suggestion)) {
-          suggestions.push(suggestion);
-          if (suggestions.length >= 5) break;
-        }
-      }
-      
-      // Try with numbers if still need more
-      if (suggestions.length < 5) {
-        for (let i = 2; i <= 99; i++) {
-          const suggestion = `${baseSubdomain}${i}`;
-          if (suggestion.length <= 30 && await this.checkSubdomainAvailability(suggestion)) {
-            suggestions.push(suggestion);
-            if (suggestions.length >= 5) break;
-          }
-        }
-      }
-      
-      return suggestions;
+      const companyRef = this.getCompanyRef(companyId);
+      await updateDoc(companyRef, {
+        businessDetails: data,
+        'setupProgress.businessDetails': true,
+        updatedAt: serverTimestamp()
+      });
     } catch (error) {
-      console.error('Error generating subdomain suggestions:', error);
-      return [];
+      console.error('Error saving business details:', error);
+      throw new Error('Failed to save business details');
     }
   }
 
-  // PRESERVE WORKING AUTO-SAVE PATTERN from Phase 2.1
-  static createAutoSaver(registrationId: string, stepNumber: number) {
-    let timeoutId: NodeJS.Timeout;
-    
-    return (data: any) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(async () => {
-        try {
-          switch (stepNumber) {
-            case 1:
-              await this.saveCompanyInfo(registrationId, data);
-              break;
-            case 2:
-              await this.saveBusinessDetails(registrationId, data);
-              break;
-            case 3:
-              await this.saveAdminAccount(registrationId, data);
-              break;
-            // Add other steps as we implement them
-            default:
-              console.log('Auto-save for step', stepNumber, data);
-          }
-        } catch (error) {
-          console.error('Auto-save failed:', error);
-        }
-      }, 2000); // 2 second debounce
-    };
-  }
-
-  // NEW: Modern auto-saver pattern for new components (Phase 2.2+)
-  static createAutoSaverFunction<T>(
-    saveFn: (data: T) => Promise<void>,
-    debounceMs: number = 2000
+  // Auto-save functionality
+  static createAutoSaver<T>(
+    registrationId: string,
+    saveFunction: (id: string, data: T) => Promise<void>,
+    delay: number = 2000
   ) {
     let timeoutId: NodeJS.Timeout;
     
@@ -356,75 +345,11 @@ export class RegistrationService {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         try {
-          await saveFn(data);
+          await saveFunction(registrationId, data);
         } catch (error) {
           console.error('Auto-save failed:', error);
         }
-      }, debounceMs);
+      }, delay);
     };
-  }
-
-  // Update current step
-  static async updateCurrentStep(
-    registrationId: string, 
-    step: number
-  ): Promise<void> {
-    try {
-      const registrationRef = this.getRegistrationRef(registrationId);
-      
-      await updateDoc(registrationRef, {
-        currentStep: step,
-        updatedAt: serverTimestamp()
-      });
-      
-    } catch (error) {
-      console.error('Error updating current step:', error);
-      throw new Error('Failed to update current step');
-    }
-  }
-
-  // Mark step as completed
-  static async markStepCompleted(
-    registrationId: string, 
-    step: number
-  ): Promise<void> {
-    try {
-      const registrationRef = this.getRegistrationRef(registrationId);
-      
-      // Get current data
-      const currentDoc = await getDoc(registrationRef);
-      const currentData = currentDoc.data();
-      const completedSteps = currentData?.completedSteps || [];
-      
-      // Add step to completed if not already there
-      const updatedCompletedSteps = completedSteps.includes(step)
-        ? completedSteps
-        : [...completedSteps, step].sort();
-
-      await updateDoc(registrationRef, {
-        completedSteps: updatedCompletedSteps,
-        currentStep: step,
-        updatedAt: serverTimestamp()
-      });
-      
-    } catch (error) {
-      console.error('Error marking step completed:', error);
-      throw new Error('Failed to mark step as completed');
-    }
-  }
-
-  // Delete registration (cleanup)
-  static async deleteRegistration(registrationId: string): Promise<void> {
-    try {
-      const registrationRef = this.getRegistrationRef(registrationId);
-      await updateDoc(registrationRef, {
-        deletedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-    } catch (error) {
-      console.error('Error deleting registration:', error);
-      throw new Error('Failed to delete registration');
-    }
   }
 }

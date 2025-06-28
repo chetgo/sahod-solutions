@@ -1,21 +1,55 @@
+// src/types/registration.ts
+
 // Extract industry type from constants  
 import { INDUSTRIES } from '../lib/constants/philippineData';
 type IndustryType = typeof INDUSTRIES[number]['id'];
 
-// Step 1: Company Information
+// Step 1 - Company Information (3 fields only)
 export interface CompanyInfoFormData {
   companyName: string;
   industry: IndustryType;
-  employeeCount: '1-10' | '11-25' | '26-50' | '51-100' | '101-250' | '251-500' | '500+';
-  region: string;
-  city: string;
   address: string;
-  adminName: string;
-  adminEmail: string;
-  adminPhone: string;
 }
 
-// Step 2: Business Compliance Details
+// Step 2 - Admin Account Creation (5 fields)
+export interface AdminAccountFormData {
+  fullName: string;     // Admin's full name
+  email: string;        // Login email + company contact
+  phone: string;        // Company contact phone
+  password: string;
+  confirmPassword: string;
+  subdomain: string;
+}
+
+// Step 3 - Trial Activation
+export interface TrialActivationFormData {
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  marketingOptIn: boolean;
+}
+
+// Registration Data for 3-step flow
+export interface RegistrationData {
+  registrationId: string;
+  currentStep: 1 | 2 | 3;
+  completedSteps: number[];
+  
+  // Step data
+  companyInfo: CompanyInfoFormData | null;
+  adminAccount: AdminAccountFormData | null;
+  trialActivation: TrialActivationFormData | null;
+  
+  // Status
+  isTrialActivated: boolean;
+  companyCreated: boolean;
+  
+  // Metadata
+  createdAt?: any;
+  updatedAt?: any;
+  expiresAt?: any;
+}
+
+// Business details for dashboard setup (post-registration)
 export interface BusinessDetailsFormData {
   tin: string;
   sssNumber: string;
@@ -30,75 +64,53 @@ export interface BusinessDetailsFormData {
   holidayRate: number;
 }
 
-// Step 3: Admin Account Creation
-export interface AdminAccountFormData {
-  email: string;
-  password: string;
-  confirmPassword: string;
+// Company document structure (created after trial activation)
+export interface CompanyDocument {
+  companyId: string;
   subdomain: string;
-}
-
-// Step 4: Plan Selection
-export interface PlanSelectionFormData {
-  planTier: 'starter' | 'professional' | 'enterprise';
-  billingCycle: 'monthly' | 'annual';
-  agreedToTerms: boolean;
-}
-
-// Step 5: Payment Setup
-export interface PaymentFormData {
-  paymentMethod: 'credit_card' | 'gcash' | 'bank_transfer';
-  cardNumber?: string;
-  cardholderName?: string;
-  expiryDate?: string;
-  cvv?: string;
-  agreedToTerms: boolean;
-}
-
-// Complete Registration Data
-export interface RegistrationData {
-  registrationId: string;
-  currentStep: number;
-  completedSteps: number[];
   
-  // Step data (null until completed)
-  companyInfo: CompanyInfoFormData | null;
-  businessDetails: BusinessDetailsFormData | null;
-  adminAccount: AdminAccountFormData | null;
-  planSelection: PlanSelectionFormData | null;
-  payment: PaymentFormData | null;
+  // Basic info from registration
+  companyName: string;
+  industry: IndustryType;
+  address: string;
+  
+  // Admin info
+  adminName: string;
+  adminEmail: string;
+  adminPhone: string;
+  
+  // Trial status
+  trialStartDate: any;
+  trialEndDate: any;
+  isTrialActive: boolean;
+  
+  // Setup progress (for dashboard)
+  setupProgress: {
+    businessDetails: boolean;
+    firstEmployee: boolean;
+    paymentMethod: boolean;
+    kioskSetup: boolean;
+    bankIntegration: boolean;
+  };
   
   // Metadata
-  createdAt?: any;
-  updatedAt?: any;
-  expiresAt?: any;
+  createdAt: any;
+  updatedAt: any;
 }
 
-// Auto-save status
-export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
-// Step validation status
-export interface StepValidation {
-  isValid: boolean;
-  errors: string[];
-}
-
-// Registration context
+// Registration context for 3-step flow
 export interface RegistrationContextType {
   registrationData: RegistrationData;
-  currentStep: number;
+  currentStep: 1 | 2 | 3;
   completedSteps: number[];
   isLoading: boolean;
-  autoSaveStatus: AutoSaveStatus;
   
   // Actions
-  updateRegistrationData: (updates: Partial<RegistrationData>) => void;
-  setCurrentStep: (step: number) => void;
+  setCurrentStep: (step: 1 | 2 | 3) => void;
   markStepCompleted: (step: number) => void;
-  validateStep: (step: number) => StepValidation;
   
   // Navigation
-  goToStep: (step: number) => void;
+  goToStep: (step: 1 | 2 | 3) => void;
   goToNextStep: () => void;
   goToPreviousStep: () => void;
   canGoToStep: (step: number) => boolean;
@@ -106,6 +118,10 @@ export interface RegistrationContextType {
   // Registration management
   registrationId: string | null;
   saveCurrentStep: () => Promise<void>;
-  loadRegistration: (regId: string) => Promise<void>;
-  createNewRegistration: () => void;
+  activateTrial: () => Promise<string>; // Returns company subdomain for redirect
 }
+
+// Export types for easier imports
+export type {
+  IndustryType
+};
