@@ -8,10 +8,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Mail, Phone, Lock, Eye, EyeOff, Globe, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 
+// ✅ FIXED IMPORTS - correct paths from steps/ folder
 import { RegistrationService } from '../../../lib/firebase/registration';
 import type { AdminAccountFormData } from '../../../types/registration';
 
-// Validation schema - 5 fields
+// Validation schema - 6 fields (including confirmPassword)
 const adminAccountSchema = z.object({
   fullName: z.string()
     .min(2, 'Full name must be at least 2 characters')
@@ -126,7 +127,7 @@ export default function AdminAccountStep({
     }
   }, [watchedPassword]);
 
-  // Check subdomain availability with debounce
+  // ✅ FIXED: Check subdomain availability with proper error handling
   const checkSubdomainAvailability = useCallback(
     async (subdomain: string) => {
       if (!subdomain || subdomain.length < 3) {
@@ -137,17 +138,21 @@ export default function AdminAccountStep({
       setSubdomainAvailability(prev => ({ ...prev, checking: true, error: null }));
 
       try {
-        const isAvailable = await RegistrationService.checkSubdomainAvailability(subdomain, registrationId);
+        // ✅ FIXED: Use the new optimized method that returns SubdomainAvailabilityResult
+        const result = await RegistrationService.checkSubdomainAvailability(subdomain, registrationId);
+        
         setSubdomainAvailability({
           checking: false,
-          available: isAvailable,
+          available: result.available,
           error: null
         });
 
-        if (!isAvailable) {
+        if (!result.available) {
           setError('subdomain', { 
             type: 'manual', 
-            message: 'This subdomain is already taken. Please choose another.'
+            message: result.status === 'reserved' 
+              ? 'This subdomain is reserved for system use' 
+              : 'This subdomain is already taken. Please choose another.'
           });
         } else {
           clearErrors('subdomain');

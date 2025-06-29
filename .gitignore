@@ -45,3 +45,12 @@ next-env.d.ts
 .env.prod
 .env*.local
 
+# Firebase
+.firebase/
+*.cache
+
+# Keep these Firebase files (DO commit):
+# firebase.json
+# firestore.rules  
+# firestore.indexes.json
+# .firebaserc (project aliases)
